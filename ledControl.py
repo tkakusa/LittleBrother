@@ -1,24 +1,27 @@
-from gpiozero import LED
+from gpiozero import RGBLED
 from time import sleep
 
-red = LED(13)
-green = LED(19)
-blue = LED(26)
+led = RGBLED(13, 19, 26)
 
 def updateLED(utilization):
+	
+	# Check for invalid input
+	if utilization > 1:
+		print("Warning: CPU utilization reported over 100%")
+	elif utilization < 0:
+		print("Warning: CPU utilization reported under 0%")
+	
 	if utilization <= .25:
-		red.off()
-		green.on()
-		blue.off()
+		# green
+		led.color = (0, 1, 0)
 	elif utilization <= .5:
-		red.on()
-		green.on()
-		blue.off()
+		# yellow
+		led.color = (1, .5, 0)
 	else:
-		red.on()
-		green.off()
-		blue.off()
-		
+		# red
+		led.color = (1, 0, 0)
+	
+# Test code (remove before integrating)	
 while(1):
 	updateLED(.2)
 	sleep(1)
