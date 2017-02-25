@@ -1,7 +1,7 @@
 import rabbitmq_lib as rmq
 from time import sleep
 import sys
-
+import json
 # arbitrary method of determining which host this is
 if(len(sys.argv) > 1):
     host_number = sys.argv[1]
@@ -14,8 +14,8 @@ connection = rmq.rmq_open_pub_cxn('192.168.1.124', "host"+host_number, 'little_b
 # do things and send messages about it indefinitely
 i = 0
 while(1):
-    print(" [x] Sending message "+str(i))
-    rmq.rmq_publish(connection, "host = "+host_number+", message = "+str(i), "host"+host_number+"")
+    message = {"host": host_number, "message count": i}
+    rmq.rmq_publish(connection, json.dumps(message), 'host'+host_number)
     i = i + 1
     sleep(2)
 
