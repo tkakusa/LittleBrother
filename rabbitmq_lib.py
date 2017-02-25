@@ -15,7 +15,7 @@ def rmq_connection(address, vhost='/', usr='', pswd=''):
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
                                                                        port=5672, #default rabbitmq port
                                                                        virtual_host=vhost,
-                                                                       credentials=credentials)
+                                                                       credentials=credentials))
     except pika.exceptions.ConnectionClosed:
         print("There was a problem connecting to the server.")
         return None
