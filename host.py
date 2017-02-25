@@ -9,11 +9,12 @@ else:
     host_number = input("Which host is this? ")
 
 # establish a connection with the rabbitmq broker
-connection = rmq.rmq_connection('172.25.17.98', 'little_brother', 'host'+host_number, 'host'+host_number+'password')
+connection = rmq.rmq_open_pub_cxn('192.168.1.124', "host"+host_number, 'little_brother', 'host'+host_number, 'host'+host_number+'password')
 
 # do things and send messages about it indefinitely
 i = 0
 while(1):
+    print(" [x] Sending message "+str(i))
     rmq.rmq_publish(connection, "host = "+host_number+", message = "+str(i), "host"+host_number+"")
     i = i + 1
     sleep(2)

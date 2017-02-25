@@ -8,18 +8,42 @@ import pika
 # @param 'vhost' = vhost on rabbitmq broker that user connects to. Default: '/'
 # @param 'usr' = name of user connecting to rabbitmq broker. Default: ''
 # @param 'pswd' = password for user connecting to rabbitmq broker. Default: ''
-def rmq_connection(address, vhost='/', usr='', pswd=''):
+def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
     credentials = pika.PlainCredentials(usr, pswd)
 
     try:
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
                                                                        port=5672, #default rabbitmq port
                                                                        virtual_host=vhost,
-                                                                       credentials=credentials)
+                                                                       credentials=credentials))
     except pika.exceptions.ConnectionClosed:
         print("There was a problem connecting to the server.")
         return None
     else:
+        return connection
+
+def rmq_open_pub_cxn(address, rkey, vhost='/', usr='', pswd=''):
+    credentials = pika.PlainCredentials(usr, pswd)
+
+    try:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
+                                                                       port=5672, #default rabbitmq port
+                                                                       virtual_host=vhost,
+                                                                       credentials=credentials))
+    except pika.exceptions.ConnectionClosed:
+        print("There was a problem connecting to the server.")
+        return None
+    else:
+        ch = connection.channel()
+        ch.exchange_declare(exchange='lb_exch',
+                            type='direct')
+
+        ch.queue_declare(queue=rkey+"_q")
+        queue_name = str(rkey + "_q")
+        ch.queue_bind(exchange='lb_exch',
+                      queue=queue_name,
+                      routing_key=rkey)
+
         return connection
 
 # Publishes a message to the rabbitmq server based on the connection provided as 'cxn'
@@ -34,9 +58,6 @@ def rmq_publish(cxn, msg, rkey):
 
     ch = cxn.channel()
 
-    ch.exchange_declare(exchange='lb_exch',
-                        type='direct')
-
     ch.basic_publish(exchange='lb_exch',
                      routing_key=rkey,
                      body=msg)
@@ -47,28 +68,19 @@ def rmq_publish(cxn, msg, rkey):
 # has to be declared this way: def [ftn_name](ch, method, properties, body)
 #
 # @param 'cxn': existing opened connection to a rabbitmq broker
-# @param 'rkeys': list of strings that are routing keys that this subscription will listen for
+# @param 'rkey': routing key that this subscription will listen for
 # @param 'callback': callback function for when a message is received
-def rmq_subscribe(cxn, rkeys, callback):
+def rmq_subscribe(cxn, rkey, callback):
     if(cxn==None):
         print("Subscription Error: Connection provided in argument was not properly established.")
         return
 
     ch = cxn.channel()
 
-    ch.exchange_declare(exchange='lb_exch',
-                        type='direct')
-
-    result = ch.queue_declare(exclusive=True)
-    queue_name = result.method.queue
-
-    for key in rkeys:
-        ch.queue_bind(exchange='lb_exch',
-                      queue=queue_name,
-                      routing_key=key)
-
+    queue_name = str(rkey + "_q")
+    ch.queue_declare(queue=queue_name)
+    ch.basic_qos(prefetch_count=1)
     ch.basic_consume(callback,
-                     queue=queue_name,
-                     no_ack=True)
+                     queue=queue_name)
 
     ch.start_consuming()
