@@ -13,6 +13,7 @@ connection = rmq.rmq_open_pub_cxn('172.25.18.104', "host"+host_number, 'little_b
 
 # do things and send messages about it indefinitely
 i = 0
+'''
 while(1):
     message = {
     "host1": {
@@ -78,12 +79,28 @@ while(1):
     i = i + 1
     sleep(2)
 '''
-message = 
+message = {
+    "host1": {
+        "cpu": .2,
+        "lo": {
+            "rx": .2,
+            "tx": .2
+            },
+        "eth0": {
+            "rx": .2,
+            "tx": .2,
+            },
+        "wlan0": {
+            "rx": .2,
+            "tx": .2
+            }
+        }
+    }
 
 rmq.rmq_publish(connection, json.dumps(message), 'host'+host_number)
 sleep(2)
 
-'''
+
 
 # close the connection once we're done
 connection.close()
