@@ -1,9 +1,56 @@
 #Net Apps - Assignment #2 - Host
 
 #imports
-import sys, os, getopt
-import rabbitmq_lib as rmq
+import sys, os, getopt, pika, json
 from time import sleep
+
+# Returns a connection to the rabbitmq server described by arguments. The returned
+# connection should be closed using '.close()' to make sure message buffers are
+# flushed and connection closes gracefully.
+#
+# @param 'address' = IP address of rabbitmq broker
+# @param 'vhost' = vhost on rabbitmq broker that user connects to. Default: '/'
+# @param 'usr' = name of user connecting to rabbitmq broker. Default: ''
+# @param 'pswd' = password for user connecting to rabbitmq broker. Default: ''
+def rmq_open_pub_cxn(address, rkey, vhost='/', usr='', pswd=''):
+    credentials = pika.PlainCredentials(usr, pswd)
+
+    try:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
+                                                                       port=5672, #default rabbitmq port
+                                                                       virtual_host=vhost,
+                                                                       credentials=credentials))
+    except pika.exceptions.ConnectionClosed:
+        print("There was a problem connecting to the server.")
+        return None
+    else:
+        ch = connection.channel()
+        ch.exchange_declare(exchange='lb_exch',
+                            type='direct')
+
+        ch.queue_declare(queue=rkey+"_q")
+        queue_name = str(rkey + "_q")
+        ch.queue_bind(exchange='lb_exch',
+                      queue=queue_name,
+                      routing_key=rkey)
+
+        return connection
+    
+# Publishes a message to the rabbitmq server based on the connection provided as 'cxn'
+#
+# @param 'cxn' = existing opened connection to a rabbitmq broker
+# @param 'msg' = string message to be sent to broker
+# @param 'rkey' = routing key to be associated with the message being sent
+def rmq_publish(cxn, msg, rkey):
+    if(cxn==None):
+        print("Publication Error: Connection provided in argument was not properly established.")
+        return
+
+    ch = cxn.channel()
+
+    ch.basic_publish(exchange='lb_exch',
+                     routing_key=rkey,
+                     body=msg)
 
 address = ''
 virtualHost = '/'
@@ -12,6 +59,10 @@ password = ''
 routingKey = ''
 
 # Parse command line arguments
+args = sys.argv[1:]
+#for arg in args:
+#    if (arg == '-b'):
+        
 try:
     opts, args = getopt.getopt(sys.argv[1:], "hb:p:c:k:")
 except getopt.GetoptError:
@@ -36,9 +87,10 @@ eth0_rx_last  = eth0_tx_last  = 0
 lo_rx_last    = lo_tx_last    = 0
 wlan0_rx_last = wlan0_tx_last = 0
 counter       = 0
+wait_time     = 1
 
 #Set up RabbitMQ Publishing connection
-connection = rmq.rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
+connection = rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
 
 while True:
     #Calculate CPU usage
@@ -68,32 +120,51 @@ while True:
     wlan0_rx_throughput, wlan0_tx_throughput = wlan0_rx - wlan0_rx_last, wlan0_tx - wlan0_tx_last
     wlan0_rx_last, wlan0_tx_last = wlan0_rx, wlan0_tx
 
-    #Print values for debugging
-    print ('_____________________________________ - ' + str(counter) + " seconds elapsed")
-    print ('CPU utilization: ' + str(cpu_utilization))
-    print ('eth0 rx: ' + str(eth0_rx_throughput) + ', eth0 tx: ' + str(eth0_tx_throughput))
-    print ('lo rx: ' + str(lo_rx_throughput) + ', lo tx: ' + str(lo_tx_throughput))
-    print ('wlan0 rx: ' + str(wlan0_rx_throughput) + ', wlan0 tx: ' + str(wlan0_tx_throughput))
+    if (counter > 0):
+        #Print values for debugging
+        print ('_____________________________________ - ' + str(counter) + " seconds elapsed")
+        print ('CPU utilization: ' + str(cpu_utilization))
+        print ('eth0 rx: ' + str(eth0_rx_throughput) + ', eth0 tx: ' + str(eth0_tx_throughput))
+        print ('lo rx: ' + str(lo_rx_throughput) + ', lo tx: ' + str(lo_tx_throughput))
+        print ('wlan0 rx: ' + str(wlan0_rx_throughput) + ', wlan0 tx: ' + str(wlan0_tx_throughput))
 
-    #Create json object containing the CPU and network usage values
-    json_object = '{\n\t\"net\": {\n' + \
-                  '\t\t\"lo\": {\n' + \
-                  '\t\t\t\"rx\": ' + str(lo_rx_throughput) + ',\n' + \
-                  '\t\t\t\"tx\": ' + str(lo_tx_throughput) + '\n' + \
-                  '\t\t},\n\t\t\"wlan0\": {\n' + \
-                  '\t\t\t\"rx\": ' + str(wlan0_rx_throughput) + ',\n' + \
-                  '\t\t\t\"tx\": ' + str(wlan0_tx_throughput) + '\n' + \
-                  '\t\t},\n\t\t\"eth0\": {\n' + \
-                  '\t\t\t\"rx\": ' + str(eth0_rx_throughput) + ',\n' + \
-                  '\t\t\t\"tx\": ' + str(eth0_tx_throughput) + '\n' + \
-                  '\t\t}\n\t},\n' + \
-                  '\t\"cpu\": ' + str(cpu_utilization) + '\n' + \
-                  '}'
-    #print(json_object)
-    
-    #Publish json object using RabbitMQ
-    rmq.rmq_publish(connection, json_object, routingKey)
+        #Create json object containing the CPU and network usage values
+##        json_object = '{"net": {' + \
+##                      '"lo": {' + \
+##                      '"rx": ' + str(lo_rx_throughput) + ',' + \
+##                      '"tx": ' + str(lo_tx_throughput) + \
+##                      '},"wlan0": {' + \
+##                      '"rx": ' + str(wlan0_rx_throughput) + ',' + \
+##                      '"tx": ' + str(wlan0_tx_throughput) + \
+##                      '},"eth0": {' + \
+##                      '"rx": ' + str(eth0_rx_throughput) + ',' + \
+##                      '"tx": ' + str(eth0_tx_throughput) + \
+##                      '},' + \
+##                      '"cpu": ' + str(cpu_utilization) + \
+##                      '}'
+        json_object = {
+            "cpu": cpu_utilization,
+            "net": {
+                "lo": {
+                    "rx": lo_rx_throughput,
+                    "tx": lo_tx_throughput
+                    },
+                "eth0": {
+                    "rx": eth0_rx_throughput,
+                    "tx": eth0_tx_throughput
+                    },
+                "wlan0": {
+                    "rx": wlan0_rx_throughput,
+                    "tx": wlan0_tx_throughput
+                    }
+                }
+            }
+
+        #print(json.dumps(json_object))            
+            
+        #Publish json object using RabbitMQ
+        rmq_publish(connection, json.dumps(json_object), routingKey)
     
     #Wait one second before re-calculating values
-    counter = counter + 1
-    sleep(1)
+    counter = counter + wait_time
+    sleep(wait_time)
