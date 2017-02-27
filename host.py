@@ -9,7 +9,7 @@ else:
     host_number = input("Which host is this? ")
 
 # establish a connection with the rabbitmq broker
-connection = rmq.rmq_open_pub_cxn('172.25.18.104', "host"+host_number, 'little_brother', 'host'+host_number, 'host'+host_number+'password')
+connection = rmq.rmq_open_pub_cxn('172.29.13.172', "host"+host_number, 'little_brother', 'host'+host_number, 'host'+host_number+'password')
 
 # do things and send messages about it indefinitely
 i = 0
@@ -82,17 +82,19 @@ while(1):
 message = {
     "host1": {
         "cpu": .2,
-        "lo": {
-            "rx": .2,
-            "tx": .2
-            },
-        "eth0": {
-            "rx": .2,
-            "tx": .2,
-            },
-        "wlan0": {
-            "rx": .2,
-            "tx": .2
+        "net": {
+            "lo": {
+                "rx": .2,
+                "tx": .2
+                },
+            "eth0": {
+                "rx": .2,
+                "tx": .2,
+                },
+            "wlan0": {
+                "rx": .2,
+                "tx": .2
+                }
             }
         }
     }

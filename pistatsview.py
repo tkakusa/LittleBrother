@@ -6,6 +6,7 @@ import pprint
 import sys, getopt
 from gpiozero import RGBLED
 from time import sleep
+import pika
 
 # Setup the LED pinouts
 led = RGBLED(13, 19, 26)
@@ -144,43 +145,61 @@ def callback(ch, method, properties, body):
 
     # Decode the body of the message from byte to string
     body = json.loads(body.decode("utf-8"))
-    print(body)
+    try:
+        
+        # Test to see that the format is correct
+        temp = body['cpu']
+        temp = body['cpu']
+        temp = body['net']['lo']['rx']
+        temp = body['net']['lo']['rx']
+        temp = body['net']['lo']['tx']
+        temp = body['net']['lo']['tx']
+        temp = body['net']['eth0']['rx']
+        temp = body['net']['eth0']['rx']
+        temp = body['net']['eth0']['tx']
+        temp = body['net']['eth0']['tx']
+        temp = body['net']['wlan0']['rx']
+        temp = body['net']['wlan0']['rx']
+        temp = body['net']['wlan0']['tx']
+        temp = body['net']['wlan0']['tx']
+        
+        # Check the routing key and store appropriately
+        if (method.routing_key == "host1"):
+            posts1.insert_one(body)
+            postscurr = posts1
+        elif (method.routing_key == "host2"):
+            posts2.insert_one(body)
+            postscurr = posts2
+        # Loop through the storage locations in order to calculate the high and low values
+        for post in postscurr.find():
+            cpu_hi = post['cpu'] if post['cpu'] > cpu_hi else cpu_hi
+            cpu_lo = post['cpu'] if post['cpu'] < cpu_lo else cpu_lo
+            lo_rx_hi = post['net']['lo']['rx'] if post['net']['lo']['rx'] > lo_rx_hi else lo_rx_hi
+            lo_rx_lo = post['net']['lo']['rx'] if post['net']['lo']['rx'] < lo_rx_lo else lo_rx_lo
+            lo_tx_hi = post['net']['lo']['tx'] if post['net']['lo']['tx'] > lo_tx_hi else lo_tx_hi
+            lo_tx_lo = post['net']['lo']['tx'] if post['net']['lo']['tx'] < lo_tx_lo else lo_tx_lo
+            eth0_rx_hi = post['net']['eth0']['rx'] if post['net']['eth0']['rx'] > eth0_rx_hi else eth0_rx_hi
+            eth0_rx_lo = post['net']['eth0']['rx'] if post['net']['eth0']['rx'] < eth0_rx_lo else eth0_rx_lo
+            eth0_tx_hi = post['net']['eth0']['tx'] if post['net']['eth0']['tx'] > eth0_tx_hi else eth0_tx_hi
+            eth0_tx_lo = post['net']['eth0']['tx'] if post['net']['eth0']['tx'] < eth0_tx_lo else eth0_tx_lo
+            wlan0_rx_hi = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] > wlan0_rx_hi else wlan0_rx_hi
+            wlan0_rx_lo = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] < wlan0_rx_lo else wlan0_rx_lo
+            wlan0_tx_hi = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] > wlan0_tx_hi else wlan0_tx_hi
+            wlan0_tx_lo = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] < wlan0_tx_lo else wlan0_tx_lo
+    
+        # Update the LED
+        updateLED(body['cpu'])
 
-    # Check the routing key and store appropriately
-    if (method.routing_key == "host1"):
-        posts1.insert_one(body)
-        postscurr = posts1
-    elif (method.routing_key == "host2"):
-        posts2.insert_one(body)
-        postscurr = posts2
-    # Loop through the storage locations in order to calculate the high and low values
-    for post in postscurr.find():
-        cpu_hi = post['cpu'] if post['cpu'] > cpu_hi else cpu_hi
-        cpu_lo = post['cpu'] if post['cpu'] < cpu_lo else cpu_lo
-        lo_rx_hi = post['net']['lo']['rx'] if post['net']['lo']['rx'] > lo_rx_hi else lo_rx_hi
-        lo_rx_lo = post['net']['lo']['rx'] if post['net']['lo']['rx'] < lo_rx_lo else lo_rx_lo
-        lo_tx_hi = post['net']['lo']['tx'] if post['net']['lo']['tx'] > lo_tx_hi else lo_tx_hi
-        lo_tx_lo = post['net']['lo']['tx'] if post['net']['lo']['tx'] < lo_tx_lo else lo_tx_lo
-        eth0_rx_hi = post['net']['eth0']['rx'] if post['net']['eth0']['rx'] > eth0_rx_hi else eth0_rx_hi
-        eth0_rx_lo = post['net']['eth0']['rx'] if post['net']['eth0']['rx'] < eth0_rx_lo else eth0_rx_lo
-        eth0_tx_hi = post['net']['eth0']['tx'] if post['net']['eth0']['tx'] > eth0_tx_hi else eth0_tx_hi
-        eth0_tx_lo = post['net']['eth0']['tx'] if post['net']['eth0']['tx'] < eth0_tx_lo else eth0_tx_lo
-        wlan0_rx_hi = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] > wlan0_rx_hi else wlan0_rx_hi
-        wlan0_rx_lo = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] < wlan0_rx_lo else wlan0_rx_lo
-        wlan0_tx_hi = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] > wlan0_tx_hi else wlan0_tx_hi
-        wlan0_tx_lo = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] < wlan0_tx_lo else wlan0_tx_lo
+        # Print the updated utilization
+        print(method.routing_key , ":")
+        print("cpu: " , body['cpu'] , " [Hi: " , cpu_hi , ", Lo: " , cpu_lo , "]")
+        print("lo: rx=" , body['net']['lo']['rx'] , " B/s [Hi: " , lo_rx_hi , " B/s, Lo: " , lo_rx_lo , " B/s], tx=" , body['net']['lo']['tx'] , " B/s [Hi: " , lo_tx_hi , " B/s, Lo: " , lo_tx_lo , " B/s]")
+        print("eth0: rx=" , body['net']['eth0']['rx'] , " B/s [Hi: " , eth0_rx_hi , " B/s, Lo: " , eth0_rx_lo , " B/s], tx=" ,body['net']['eth0']['tx'] , " B/s [Hi: " , eth0_tx_hi , " B/s, Lo: " , eth0_tx_lo , " B/s]")
+        print("wlan0: rx=" , body['net']['wlan0']['rx'] , " B/s [Hi: " , wlan0_rx_hi , " B/s, Lo: " , wlan0_rx_lo , " B/s], tx=" ,body['net']['wlan0']['tx'] , " B/s [Hi: " , wlan0_tx_hi , " B/s, Lo: " , wlan0_tx_lo , " B/s]")
+        print()
 
-    # Update the LED
-    updateLED(body['cpu'])
-
-    # Print the updated utilization
-    print(method.routing_key , ":")
-    print("cpu: " , body['cpu'] , " [Hi: " , cpu_hi , ", Lo: " , cpu_lo , "]")
-    print("lo: rx=" , body['net']['lo']['rx'] , " B/s [Hi: " , lo_rx_hi , " B/s, Lo: " , lo_rx_lo , " B/s], tx=" , body['net']['lo']['tx'] , " B/s [Hi: " , lo_tx_hi , " B/s, Lo: " , lo_tx_lo , " B/s]")
-    print("eth0: rx=" , body['net']['eth0']['rx'] , " B/s [Hi: " , eth0_rx_hi , " B/s, Lo: " , eth0_rx_lo , " B/s], tx=" ,body['net']['eth0']['tx'] , " B/s [Hi: " , eth0_tx_hi , " B/s, Lo: " , eth0_tx_lo , " B/s]")
-    print("wlan0: rx=" , body['net']['wlan0']['rx'] , " B/s [Hi: " , wlan0_rx_hi , " B/s, Lo: " , wlan0_rx_lo , " B/s], tx=" ,body['net']['wlan0']['tx'] , " B/s [Hi: " , wlan0_tx_hi , " B/s, Lo: " , wlan0_tx_lo , " B/s]")
-    print()
-
+    except:
+        print ("Error parsing data: Incorrect Format")
     # Acknowledge the message has been properly read in
     ch.basic_ack(delivery_tag = method.delivery_tag)
     
