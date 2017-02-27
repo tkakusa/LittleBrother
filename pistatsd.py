@@ -1,8 +1,8 @@
 #Net Apps - Assignment #2 - Host
 
 #imports
-from __future__ import print_function
 import sys, os, getopt
+import rabbitmq_lib as rmq
 from time import sleep
 
 address = ''
@@ -35,11 +35,10 @@ last_idle     = last_total    = 0
 eth0_rx_last  = eth0_tx_last  = 0
 lo_rx_last    = lo_tx_last    = 0
 wlan0_rx_last = wlan0_tx_last = 0
+counter       = 0
 
-last_eth0  = eth0_total  = 0
-last_lo    = lo_total    = 0
-last_wlan0 = wlan0_total = 0
-counter    = 0
+#Set up RabbitMQ Publishing connection
+connection = rmq.rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
 
 while True:
     #Calculate CPU usage
@@ -49,7 +48,7 @@ while True:
     idle_delta, total_delta = idle - last_idle, total - last_total
     last_idle, last_total = idle, total
     cpu_utilization = 1.0 * (1.0 - idle_delta / total_delta)
-    print(cpu_utilization)
+
     #Get Network Usage Data
     with open('/proc/net/dev') as f:
         network_info = f.readlines()
@@ -70,11 +69,11 @@ while True:
     wlan0_rx_last, wlan0_tx_last = wlan0_rx, wlan0_tx
 
     #Print values for debugging
-##    print ('_____________________________________ - ' + str(counter) + " seconds elapsed")
-##    print ('CPU utilization: ' + str(cpu_utilization))
-##    print ('eth0 rx: ' + str(eth0_rx_throughput) + ', eth0 tx: ' + str(eth0_tx_throughput))
-##    print ('lo rx: ' + str(lo_rx_throughput) + ', lo tx: ' + str(lo_tx_throughput))
-##    print ('wlan0 rx: ' + str(wlan0_rx_throughput) + ', wlan0 tx: ' + str(wlan0_tx_throughput))
+    print ('_____________________________________ - ' + str(counter) + " seconds elapsed")
+    print ('CPU utilization: ' + str(cpu_utilization))
+    print ('eth0 rx: ' + str(eth0_rx_throughput) + ', eth0 tx: ' + str(eth0_tx_throughput))
+    print ('lo rx: ' + str(lo_rx_throughput) + ', lo tx: ' + str(lo_tx_throughput))
+    print ('wlan0 rx: ' + str(wlan0_rx_throughput) + ', wlan0 tx: ' + str(wlan0_tx_throughput))
 
     #Create json object containing the CPU and network usage values
     json_object = '{\n\t\"net\": {\n' + \
@@ -90,8 +89,11 @@ while True:
                   '\t\t}\n\t},\n' + \
                   '\t\"cpu\": ' + str(cpu_utilization) + '\n' + \
                   '}'
-
-    print(json_object)
+    #print(json_object)
+    
+    #Publish json object using RabbitMQ
+    rmq.rmq_publish(connection, json_object, routingKey)
+    
     #Wait one second before re-calculating values
-    sleep(1)
     counter = counter + 1
+    sleep(1)
