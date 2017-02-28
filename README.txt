@@ -13,3 +13,5 @@ Steps to set up the RabbitMQ Message Broker on a Rasberry Pi running Raspbian
 
 For the RabbitMQ wrapper functions, the "pika" Python library be installed. 
 
+For the host Raspberry Pi, run the pistatsd.py script to begin sending out CPU and Network data formatted as a JSON object to the server.
+
