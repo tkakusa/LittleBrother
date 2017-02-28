@@ -51,6 +51,9 @@ for opt, arg in opts:
         (usr, pswd) = arg.split(":")
     elif opt in ("-k"):
         routing_key = arg
+if (address == '' or routing_key == ''):
+    print('usage: pistatsview -b message broker [-p virtual host] [-c login:password] -k routing key')
+    sys.exit(2)
 
 # Print Connection Information for Debugging purposes
 print ("Address:        ", address)
@@ -163,7 +166,7 @@ def callback(ch, method, properties, body):
     # Decode the body of the message from byte to string
     body = json.loads(body.decode("utf-8"))
     try:
-        
+
         # Test to see that the format is correct
         temp = body['cpu']
         temp = body['cpu']
@@ -179,7 +182,7 @@ def callback(ch, method, properties, body):
         temp = body['net']['wlan0']['rx']
         temp = body['net']['wlan0']['tx']
         temp = body['net']['wlan0']['tx']
-        
+
         # Check the routing key and store appropriately
         if (method.routing_key == "host1"):
             posts1.insert_one(body)
@@ -203,7 +206,7 @@ def callback(ch, method, properties, body):
             wlan0_rx_lo = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] < wlan0_rx_lo else wlan0_rx_lo
             wlan0_tx_hi = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] > wlan0_tx_hi else wlan0_tx_hi
             wlan0_tx_lo = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] < wlan0_tx_lo else wlan0_tx_lo
-    
+
         # Update the LED
         updateLED(body['cpu'])
 
@@ -228,11 +231,11 @@ connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
 print(" [x] Listening for messages...")
 
 # start listening for messages with the routing keys listed in the second argument
-connectionDropped = True
+connectionDropped = True # assume that connection was dropped
 while(connectionDropped):
     try:
         rmq_subscribe(connection, routing_key, callback)
     except pika.exceptions.ConnectionClosed:
         connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
     else:
-        connectionDropped = False 
+        connectionDropped = False
