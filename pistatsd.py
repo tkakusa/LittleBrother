@@ -164,6 +164,7 @@ while True:
             try:
                 rmq_publish(connection, json.dumps(json_object), routingKey)
             except pika.exceptions.ConnectionClosed:
+                print("The connection to the server was lost. Trying to reconnect...")
                 connection = rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
             else:
                 connectionDropped = False
