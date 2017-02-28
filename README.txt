@@ -10,6 +10,11 @@ Steps to set up the RabbitMQ Message Broker on a Rasberry Pi running Raspbian
   2e) sudo rabbitmqctl set_permissions -p "little_brother" host1 ".*" ".*" ".*"
   2f) sudo rabbitmqctl set_permissions -p "little_brother" host2 ".*" ".*" ".*"
   2g) sudo rabbitmqctl set_permissions -p "little_brother" monitor ".*" ".*" ".*"
+  
+To setup the noSQL Database 
+1) Follow the instructions listed on "https://api.mongodb.com/python/current/installation.html"
+2) Start the database using the command "mongod"
+3) Use the tutorial on this page: "https://api.mongodb.com/python/current/tutorial.html" to get the commands necessary for using the database
 
 For the RabbitMQ wrapper functions, the "pika" Python library be installed. 
 
