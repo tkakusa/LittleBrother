@@ -70,10 +70,6 @@ password = ''
 routingKey = ''
 
 # Parse command line arguments
-args = sys.argv[1:]
-#for arg in args:
-#    if (arg == '-b'):
-
 try:
     opts, args = getopt.getopt(sys.argv[1:], "hb:p:c:k:")
 except getopt.GetoptError:
@@ -91,7 +87,10 @@ for opt, arg in opts:
         (username,password) = arg.split(":")
     elif opt in ("-k"):
         routingKey = arg
-
+if (address == '' or routingKey == ''):
+    print('usage: pistatsd -b message broker [-p virtual host] [-c login:password] -k routing key')
+    sys.exit(2)
+    
 #Declare and initialize variables
 last_idle     = last_total    = 0
 eth0_rx_last  = eth0_tx_last  = 0
@@ -104,7 +103,7 @@ wait_time     = 1
 connection = rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
 
 while True:
-    #Calculate CPU usage
+    #Calculate CPU usage (using code from https://rosettacode.org/wiki/Linux_CPU_utilization)
     with open('/proc/stat') as f:
         fields = [float(column) for column in f.readline().strip().split()[1:]]
     idle, total = fields[3], sum(fields)
@@ -112,7 +111,7 @@ while True:
     last_idle, last_total = idle, total
     cpu_utilization = 1.0 * (1.0 - idle_delta / total_delta)
 
-    #Get Network Usage Data
+    #Get Network Usage Data (with help from serverfault.com/questions/533513/how-to-get-tx-rx-bytes-without-ifconfig)
     with open('/proc/net/dev') as f:
         network_info = f.readlines()
 
@@ -140,19 +139,6 @@ while True:
         print ('wlan0 rx: ' + str(wlan0_rx_throughput) + ', wlan0 tx: ' + str(wlan0_tx_throughput))
 
         #Create json object containing the CPU and network usage values
-##        json_object = '{"net": {' + \
-##                      '"lo": {' + \
-##                      '"rx": ' + str(lo_rx_throughput) + ',' + \
-##                      '"tx": ' + str(lo_tx_throughput) + \
-##                      '},"wlan0": {' + \
-##                      '"rx": ' + str(wlan0_rx_throughput) + ',' + \
-##                      '"tx": ' + str(wlan0_tx_throughput) + \
-##                      '},"eth0": {' + \
-##                      '"rx": ' + str(eth0_rx_throughput) + ',' + \
-##                      '"tx": ' + str(eth0_tx_throughput) + \
-##                      '},' + \
-##                      '"cpu": ' + str(cpu_utilization) + \
-##                      '}'
         json_object = {
             "cpu": cpu_utilization,
             "net": {
@@ -170,7 +156,6 @@ while True:
                     }
                 }
             }
-
         #print(json.dumps(json_object))
 
         #Publish json object using RabbitMQ
