@@ -90,6 +90,9 @@ def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
         except pika.exceptions.ProbableAuthenticationError:
             print("Could not authenticate with the server. Please check your vhost name and credentials.")
             sys.exit()
+        else:
+            connectFail = False
+            
 
     if(attempts == 0):
         print("Could not connect to the server.")
