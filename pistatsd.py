@@ -1,18 +1,29 @@
+#!/usr/bin/python3
+
 #Net Apps - Assignment #2 - Host
 
 #imports
 import sys, os, getopt, pika, json
 from time import sleep
 
-# Returns a connection to the rabbitmq server described by arguments. The returned
-# connection should be closed using '.close()' to make sure message buffers are
-# flushed and connection closes gracefully.
-#
-# @param 'address' = IP address of rabbitmq broker
-# @param 'vhost' = vhost on rabbitmq broker that user connects to. Default: '/'
-# @param 'usr' = name of user connecting to rabbitmq broker. Default: ''
-# @param 'pswd' = password for user connecting to rabbitmq broker. Default: ''
 def rmq_open_pub_cxn(address, rkey, vhost='/', usr='', pswd=''):
+    """Return a connection to the RabbitMQ broker used for publishing.
+
+    If connection fails due to actual connection to RabbitMQ broker, this method
+    will try 4 more times to connect, and exit this application if a connection
+    can't be made. If the user described by the arguments doesn't authenticate
+    on the RabbitMQ broker, that error will be printed and this application will
+    be exited. The successfully returned connection should be closed using
+    '.close()' to make sure message buffers are flushed and connection closes
+    gracefully.
+
+    Keyword arguments:
+    address -- IP address of rabbitmq broker
+    rkey -- routing_key that this publisher instends to publish with
+    vhost -- name of vhost to connect to on rabbitmq broker
+    usr -- username of user defined on rabbitmq broker
+    pswd -- password of user define on rabbitmq broker
+    """
     credentials = pika.PlainCredentials(usr, pswd)
 
     connectFail = True
@@ -51,12 +62,14 @@ def rmq_open_pub_cxn(address, rkey, vhost='/', usr='', pswd=''):
 
     return connection
 
-# Publishes a message to the rabbitmq server based on the connection provided as 'cxn'
-#
-# @param 'cxn' = existing opened connection to a rabbitmq broker
-# @param 'msg' = string message to be sent to broker
-# @param 'rkey' = routing key to be associated with the message being sent
 def rmq_publish(cxn, msg, rkey):
+    """Publishes a message to the rabbitmq server.
+
+    Keyword arguments:
+    cxn -- existing opened connection to a rabbitmq broker
+    msg -- string message to be sent to broker
+    rkey -- routing key to be associated with the message being sent
+    """
     ch = cxn.channel()
 
     ch.basic_publish(exchange='lb_exch',
@@ -90,7 +103,7 @@ for opt, arg in opts:
 if (address == '' or routingKey == ''):
     print('usage: pistatsd -b message broker [-p virtual host] [-c login:password] -k routing key')
     sys.exit(2)
-    
+
 #Declare and initialize variables
 last_idle     = last_total    = 0
 eth0_rx_last  = eth0_tx_last  = 0

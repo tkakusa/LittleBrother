@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+#Net Apps - Assignment #2 - Monitor
+
 from pymongo import MongoClient
 import json
 import pprint
@@ -62,15 +64,24 @@ print ("User Name:      ", usr)
 print ("Password:       ", pswd)
 print ("Routing Key:    ", routing_key)
 
-# Returns a connection to the rabbitmq server described by arguments. The returned
-# connection should be closed using '.close()' to make sure message buffers are
-# flushed and connection closes gracefully.
-#
-# @param 'address' = IP address of rabbitmq broker
-# @param 'vhost' = vhost on rabbitmq broker that user connects to. Default: '/'
-# @param 'usr' = name of user connecting to rabbitmq broker. Default: ''
-# @param 'pswd' = password for user connecting to rabbitmq broker. Default: ''
 def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
+    """Return a connection to the RabbitMQ broker used for subscribing.
+
+    If connection fails due to actual connection to RabbitMQ broker, this method
+    will try 4 more times to connect, and exit this application if a connection
+    can't be made. If the user described by the arguments doesn't authenticate
+    on the RabbitMQ broker, that error will be printed and this application will
+    be exited. The successfully returned connection should be closed using
+    '.close()' to make sure message buffers are flushed and connection closes
+    gracefully.
+
+    Keyword arguments:
+    address -- IP address of rabbitmq broker
+    callback -- callback function for when a message is received
+    vhost -- name of vhost to connect to on rabbitmq broker
+    usr -- username of user defined on rabbitmq broker
+    pswd -- password of user define on rabbitmq broker
+    """
     credentials = pika.PlainCredentials(usr, pswd)
 
     connectFail = True
@@ -92,7 +103,7 @@ def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
             sys.exit()
         else:
             connectFail = False
-            
+
 
     if(attempts == 0):
         print("Could not connect to the server.")
@@ -100,15 +111,19 @@ def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
 
     return connection
 
-# Subscribes to an exchange based on the rkeys provided, and starts listening.
-# Listening is blocking, so no code will be executed after this function is called.
-# Executes callback function upon receiving a message fitting the rkeys. 'callback'
-# has to be declared this way: def [ftn_name](ch, method, properties, body)
-#
-# @param 'cxn': existing opened connection to a rabbitmq broker
-# @param 'rkey': routing key that this subscription will listen for
-# @param 'callback': callback function for when a message is received
 def rmq_subscribe(cxn, rkey, callback):
+    """Subscribes to a queue based on the rkey provided.
+
+    Listening is blocking, so no code will be executed after this function is
+    called. Executes callback function upon receiving a message fitting the
+    rkey. 'callback' has to be declared the following way:
+    def [ftn_name](ch, method, properties, body)
+
+    Keyword arguments:
+    cxn -- existing opened connection to a rabbitmq broker
+    rkey -- routing key that this subscription will listen for
+    callback -- callback function for when a message is received
+    """
     if(cxn==None):
         print("Subscription Error: Connection provided in argument was not properly established.")
         return
