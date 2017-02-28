@@ -117,6 +117,10 @@ def rmq_subscribe(cxn, rkey, callback):
 
     ch.start_consuming()
 
+# Updates the color of the LED based on the CPU utilization
+# Consulted reference: https://www.raspberrypi.org/files/education/posters/GPIO_Zero_Cheatsheet.pdf
+#
+# @param 'utilization': the CPU utilization, between 0 (0%) and 1 (100%)
 def updateLED(utilization):
 
 	# Check for invalid input
