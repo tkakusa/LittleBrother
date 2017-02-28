@@ -15,37 +15,48 @@ from time import sleep
 def rmq_open_pub_cxn(address, rkey, vhost='/', usr='', pswd=''):
     credentials = pika.PlainCredentials(usr, pswd)
 
-    try:
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
-                                                                       port=5672, #default rabbitmq port
-                                                                       virtual_host=vhost,
-                                                                       credentials=credentials))
-    except pika.exceptions.ConnectionClosed:
-        print("There was a problem connecting to the server.")
-        return None
-    else:
-        ch = connection.channel()
-        ch.exchange_declare(exchange='lb_exch',
-                            type='direct')
+    connectFail = True
+    attempts = 5
+    while(connectFail and attempts > 0):
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
+                                                                           port=5672, #default rabbitmq port
+                                                                           virtual_host=vhost,
+                                                                           credentials=credentials))
+        except pika.exceptions.ConnectionClosed:
+            print("There was a problem connecting to the server.")
+            print("Trying to reconnect...")
+            sleep(3)
+            attempts = attempts - 1
 
-        ch.queue_declare(queue=rkey+"_q")
-        queue_name = str(rkey + "_q")
-        ch.queue_bind(exchange='lb_exch',
-                      queue=queue_name,
-                      routing_key=rkey)
+        except pika.exceptions.ProbableAuthenticationError:
+            print("Could not authenticate with the server. Please check your vhost name and credentials.")
+            sys.exit()
 
-        return connection
-    
+        else:
+            connectFail = False
+            ch = connection.channel()
+            ch.exchange_declare(exchange='lb_exch',
+                                type='direct')
+
+            ch.queue_declare(queue=rkey+"_q")
+            queue_name = str(rkey + "_q")
+            ch.queue_bind(exchange='lb_exch',
+                          queue=queue_name,
+                          routing_key=rkey)
+
+    if(attempts == 0):
+        print("Could not connect to the server.")
+        sys.exit()
+
+    return connection
+
 # Publishes a message to the rabbitmq server based on the connection provided as 'cxn'
 #
 # @param 'cxn' = existing opened connection to a rabbitmq broker
 # @param 'msg' = string message to be sent to broker
 # @param 'rkey' = routing key to be associated with the message being sent
 def rmq_publish(cxn, msg, rkey):
-    if(cxn==None):
-        print("Publication Error: Connection provided in argument was not properly established.")
-        return
-
     ch = cxn.channel()
 
     ch.basic_publish(exchange='lb_exch',
@@ -62,7 +73,7 @@ routingKey = ''
 args = sys.argv[1:]
 #for arg in args:
 #    if (arg == '-b'):
-        
+
 try:
     opts, args = getopt.getopt(sys.argv[1:], "hb:p:c:k:")
 except getopt.GetoptError:
@@ -160,11 +171,18 @@ while True:
                 }
             }
 
-        #print(json.dumps(json_object))            
-            
+        #print(json.dumps(json_object))
+
         #Publish json object using RabbitMQ
-        rmq_publish(connection, json.dumps(json_object), routingKey)
-    
+        connectionDropped = True # assume that connection was dropped
+        while(connectionDropped):
+            try:
+                rmq_publish(connection, json.dumps(json_object), routingKey)
+            except pika.exceptions.ConnectionClosed:
+                connection = rmq_open_pub_cxn(address, routingKey, virtualHost, username, password)
+            else:
+                connectionDropped = False
+
     #Wait one second before re-calculating values
     counter = counter + wait_time
     sleep(wait_time)

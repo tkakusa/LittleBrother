@@ -70,16 +70,29 @@ print ("Routing Key:    ", routing_key)
 def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
     credentials = pika.PlainCredentials(usr, pswd)
 
-    try:
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
-                                                                       port=5672, #default rabbitmq port
-                                                                       virtual_host=vhost,
-                                                                       credentials=credentials))
-    except pika.exceptions.ConnectionClosed:
-        print("There was a problem connecting to the server.")
-        return None
-    else:
-        return connection
+    connectFail = True
+    attempts = 5
+    while(connectFail and attempts > 0):
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
+                                                                           port=5672, #default rabbitmq port
+                                                                           virtual_host=vhost,
+                                                                           credentials=credentials))
+        except pika.exceptions.ConnectionClosed:
+            print("There was a problem connecting to the server.")
+            print("Trying to reconnect...")
+            sleep(3)
+            attempts = attempts - 1
+
+        except pika.exceptions.ProbableAuthenticationError:
+            print("Could not authenticate with the server. Please check your vhost name and credentials.")
+            sys.exit()
+
+    if(attempts == 0):
+        print("Could not connect to the server.")
+        sys.exit()
+
+    return connection
 
 # Subscribes to an exchange based on the rkeys provided, and starts listening.
 # Listening is blocking, so no code will be executed after this function is called.
@@ -103,15 +116,15 @@ def rmq_subscribe(cxn, rkey, callback):
                      queue=queue_name)
 
     ch.start_consuming()
-    
+
 def updateLED(utilization):
-	
+
 	# Check for invalid input
 	if utilization > 1:
 		print("Warning: CPU utilization reported over 100%")
 	elif utilization < 0:
 		print("Warning: CPU utilization reported under 0%")
-	
+
 	if utilization <= .25:
 		# green
 		led.color = (0, 1, 0)
@@ -121,7 +134,7 @@ def updateLED(utilization):
 	else:
 		# red
 		led.color = (1, 0, 0)
-        
+
 
 # When you receive messages, this function will be called. It needs to have these
 # arguments to be called properly. The routing key and message itself can be extracted
@@ -202,7 +215,7 @@ def callback(ch, method, properties, body):
         print ("Error parsing data: Incorrect Format")
     # Acknowledge the message has been properly read in
     ch.basic_ack(delivery_tag = method.delivery_tag)
-    
+
 
 # establish a connection with the rabbitmq broker
 connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
@@ -211,5 +224,11 @@ connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
 print(" [x] Listening for messages...")
 
 # start listening for messages with the routing keys listed in the second argument
-rmq_subscribe(connection, routing_key, callback)
-
+connectionDropped = True
+while(connectionDropped):
+    try:
+        rmq_subscribe(connection, routing_key, callback)
+    except pika.exceptions.ConnectionClosed:
+        connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
+    else:
+        connectionDropped = False 
