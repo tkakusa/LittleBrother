@@ -54,7 +54,7 @@ for opt, arg in opts:
 if (address == '' or routing_key == ''):
     print('usage: pistatsview -b message broker [-p virtual host] [-c login:password] -k routing key')
     sys.exit(2)
-    
+
 # Print Connection Information for Debugging purposes
 print ("Address:        ", address)
 print ("Virtual Host:   ", vhost)
@@ -73,16 +73,29 @@ print ("Routing Key:    ", routing_key)
 def rmq_open_sub_cxn(address, callback, vhost='/', usr='', pswd=''):
     credentials = pika.PlainCredentials(usr, pswd)
 
-    try:
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
-                                                                       port=5672, #default rabbitmq port
-                                                                       virtual_host=vhost,
-                                                                       credentials=credentials))
-    except pika.exceptions.ConnectionClosed:
-        print("There was a problem connecting to the server.")
-        return None
-    else:
-        return connection
+    connectFail = True
+    attempts = 5
+    while(connectFail and attempts > 0):
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=address,
+                                                                           port=5672, #default rabbitmq port
+                                                                           virtual_host=vhost,
+                                                                           credentials=credentials))
+        except pika.exceptions.ConnectionClosed:
+            print("There was a problem connecting to the server.")
+            print("Trying to reconnect...")
+            sleep(3)
+            attempts = attempts - 1
+
+        except pika.exceptions.ProbableAuthenticationError:
+            print("Could not authenticate with the server. Please check your vhost name and credentials.")
+            sys.exit()
+
+    if(attempts == 0):
+        print("Could not connect to the server.")
+        sys.exit()
+
+    return connection
 
 # Subscribes to an exchange based on the rkeys provided, and starts listening.
 # Listening is blocking, so no code will be executed after this function is called.
@@ -106,15 +119,15 @@ def rmq_subscribe(cxn, rkey, callback):
                      queue=queue_name)
 
     ch.start_consuming()
-    
+
 def updateLED(utilization):
-	
+
 	# Check for invalid input
 	if utilization > 1:
 		print("Warning: CPU utilization reported over 100%")
 	elif utilization < 0:
 		print("Warning: CPU utilization reported under 0%")
-	
+
 	if utilization <= .25:
 		# green
 		led.color = (0, 1, 0)
@@ -124,7 +137,7 @@ def updateLED(utilization):
 	else:
 		# red
 		led.color = (1, 0, 0)
-        
+
 
 # When you receive messages, this function will be called. It needs to have these
 # arguments to be called properly. The routing key and message itself can be extracted
@@ -149,7 +162,7 @@ def callback(ch, method, properties, body):
     # Decode the body of the message from byte to string
     body = json.loads(body.decode("utf-8"))
     try:
-        
+
         # Test to see that the format is correct
         temp = body['cpu']
         temp = body['cpu']
@@ -165,7 +178,7 @@ def callback(ch, method, properties, body):
         temp = body['net']['wlan0']['rx']
         temp = body['net']['wlan0']['tx']
         temp = body['net']['wlan0']['tx']
-        
+
         # Check the routing key and store appropriately
         if (method.routing_key == "host1"):
             posts1.insert_one(body)
@@ -189,7 +202,7 @@ def callback(ch, method, properties, body):
             wlan0_rx_lo = post['net']['wlan0']['rx'] if post['net']['wlan0']['rx'] < wlan0_rx_lo else wlan0_rx_lo
             wlan0_tx_hi = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] > wlan0_tx_hi else wlan0_tx_hi
             wlan0_tx_lo = post['net']['wlan0']['tx'] if post['net']['wlan0']['tx'] < wlan0_tx_lo else wlan0_tx_lo
-    
+
         # Update the LED
         updateLED(body['cpu'])
 
@@ -205,7 +218,7 @@ def callback(ch, method, properties, body):
         print ("Error parsing data: Incorrect Format")
     # Acknowledge the message has been properly read in
     ch.basic_ack(delivery_tag = method.delivery_tag)
-    
+
 
 # establish a connection with the rabbitmq broker
 connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
@@ -214,5 +227,11 @@ connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
 print(" [x] Listening for messages...")
 
 # start listening for messages with the routing keys listed in the second argument
-rmq_subscribe(connection, routing_key, callback)
-
+connectionDropped = True # assume that connection was dropped
+while(connectionDropped):
+    try:
+        rmq_subscribe(connection, routing_key, callback)
+    except pika.exceptions.ConnectionClosed:
+        connection = rmq_open_sub_cxn(address, callback, vhost, usr, pswd)
+    else:
+        connectionDropped = False
